@@ -141,6 +141,8 @@
   "preferences": {
     "showLiveSourceSwitcher": "true",
     "appLandingDestination": "live_tv",
-    "lastActiveProviderId": "1"
+    "lastActiveProviderId": "1",
+    "liveChannelGroupingMode": "GROUPED",
+    "liveVariantPreferenceMode": "STABILITY_FIRST"
   }
 }
