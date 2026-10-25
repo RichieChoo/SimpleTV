@@ -1,0 +1,55 @@
+{
+  "columns": 6,
+  "rows_below_dock": 0,
+  "dock_title": true,
+  "always_show_names": false,
+  "app_library": true,
+  "library_button": false,
+  "tile_menu": true,
+  "launcher_settings_button": true,
+  "dock_apps": [
+    "com.streamvault.app",
+    "com.limelight",
+    "com.ktcp.video",
+    "com.gitvdemo.video",
+    "com.xiaodianshi.tv.yst",
+    "com.cibn.tv"
+  ],
+  "wallpaper": true,
+  "wallpaper_rotation_minutes": 5,
+  "wallpaper_order": "sequential",
+  "wallpaper_dim": 15,
+  "dock_opacity": 70,
+  "ambient_glow": false,
+  "wallpaper_true_color": true,
+  "hidden_apps": [
+    "com.github.kr328.clash",
+    "com.mediatek.wwtv.tvcenter",
+    "com.mitv.gallery"
+  ],
+  "app_labels": [
+    "com.streamvault.app=IPTV"
+  ],
+  "icon_only_inputs": false,
+  "single_row": true,
+  "dock_band_all": true,
+  "animations": true,
+  "reduced_motion": false,
+  "top_menu": false,
+  "icon_only_buttons": false,
+  "open_on_start_choice": true,
+  "show_inputs_pill": true,
+  "show_network_pill": true,
+  "fill_dock": true,
+  "wallpaper_moods": {
+    "morning": [
+      "03-moon-right.png"
+    ],
+    "evening": [
+      "03-moon-right.png"
+    ],
+    "night": [
+      "03-moon-right.png"
+    ]
+  }
+}

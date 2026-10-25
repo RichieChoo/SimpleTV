@@ -558,13 +558,13 @@ and a wallpaper.
     its own row (`dock_row`, on by default).
   - **Wallpaper**: one picture from the theme's collection (or its `wallpaper.jpg`), **None**, or **Theme
     default**. A pick holds that picture and stops the rotation until you choose Theme default, press
-    Follow theme, or push the theme again.
+    Restore default background. Theme updates preserve on-TV layout choices.
   - **Animations** on or off, and **Advanced effects** (tile lift, icon zoom and smooth ambient-colour
     transitions; they may use more memory) once animations are on.
   - **Open on start**, only with `open_on_start_choice`: Off, or an app that opens instead of Home the first
     time Home comes up after the TV starts. Once per boot, so Home and Back still reach the launcher.
-  - **Follow theme (reset on-TV choices)**, which clears every choice above. Pushing or resetting a theme
-    clears them too.
+  - **Restore default background**, which resets only the selected background. App order, layout and
+    startup preferences are retained.
   - **Choose default home** opens Android's home picker, and **TV system settings** the TV's own settings
     page.
 - **Change the default home:** Launcher settings and the optional Default-home tile

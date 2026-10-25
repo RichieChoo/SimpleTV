@@ -533,6 +533,15 @@ final class AppLibraryDialog {
                 Toast.makeText(activity, activity.getString(R.string.cant_open, label(app)), Toast.LENGTH_SHORT).show();
             }
         });
+        Intent uninstall = SystemSettings.uninstall(activity, pkg);
+        if (uninstall != null) addAction(rows, R.string.library_uninstall, () -> {
+            close();
+            try {
+                activity.startActivity(uninstall);
+            } catch (ActivityNotFoundException | SecurityException e) {
+                Toast.makeText(activity, activity.getString(R.string.cant_open, label(app)), Toast.LENGTH_SHORT).show();
+            }
+        });
         int menuWidth = dp(220);
         for (int i = 0; i < rows.getChildCount(); i++) {
             TextView title = rows.getChildAt(i).findViewById(R.id.title);
@@ -570,6 +579,10 @@ final class AppLibraryDialog {
         row.setOnClickListener(v -> action.run());
         rows.addView(row);
         row.setOnKeyListener((v, key, event) -> {
+            if (key == KeyEvent.KEYCODE_MENU) {
+                if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled() && actionPopup != null) actionPopup.dismiss();
+                return true;
+            }
             int index = rows.indexOfChild(v);
             return event.getAction() == KeyEvent.ACTION_DOWN && (key == KeyEvent.KEYCODE_DPAD_LEFT
                     || key == KeyEvent.KEYCODE_DPAD_RIGHT || key == KeyEvent.KEYCODE_DPAD_UP && index == 0
@@ -661,6 +674,10 @@ final class AppLibraryDialog {
                 }
             });
             holder.itemView.setOnKeyListener((v, key, event) -> {
+                if (key == KeyEvent.KEYCODE_MENU) {
+                    if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) showActions(app, v);
+                    return true;
+                }
                 int index = holder.getBindingAdapterPosition();
                 return event.getAction() == KeyEvent.ACTION_DOWN && (key == KeyEvent.KEYCODE_DPAD_UP
                         || key == KeyEvent.KEYCODE_DPAD_DOWN

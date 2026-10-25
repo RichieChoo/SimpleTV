@@ -49,4 +49,17 @@ final class SystemSettings {
         Intent info = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + pkg));
         return context.getPackageManager().resolveActivity(info, PackageManager.MATCH_DEFAULT_ONLY) != null ? info : null;
     }
+
+    /** Requests Android's confirmation UI; it never removes an app directly. */
+    static Intent uninstall(Context context, String pkg) {
+        PackageManager pm = context.getPackageManager();
+        Intent intent = new Intent(Intent.ACTION_DELETE, Uri.parse("package:" + pkg));
+        try {
+            int flags = pm.getApplicationInfo(pkg, 0).flags;
+            return AppMenuPolicy.canUninstall(pkg, context.getPackageName(), flags,
+                    pm.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY) != null) ? intent : null;
+        } catch (PackageManager.NameNotFoundException absent) {
+            return null;
+        }
+    }
 }

@@ -3,6 +3,7 @@ package com.gathin.tvhome;
 import android.animation.ArgbEvaluator;
 import android.animation.ValueAnimator;
 import android.app.Activity;
+import android.app.ActivityOptions;
 import android.app.Dialog;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
@@ -134,6 +135,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private RecyclerView grid;
     private FrameLayout root;
     private WallpaperPlayer wallpaperPlayer;
+    private TextView themeEditorHint;
+    private View settingsCover;
+    private List<File> themePictures;
+    private int themePictureIndex;
+    private Config themeBefore;
     private GlassView glass;
     private View ambient;
     private TextView heroName;
@@ -257,6 +263,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private int packageSequence;
     /** The Inputs or Module cards dropdown while one is open, so onPause can close it. */
     private PopupWindow openPopup;
+    private boolean menuKeyPressed;
     /** Reorder mode is on (top-bar button). */
     private boolean reordering;
     /** Key of the tile being carried in reorder mode, or null. */
@@ -372,6 +379,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        OriginalHome.resumeCustomIfAsked(this, getIntent());
         setContentView(R.layout.activity_main);
         density = getResources().getDisplayMetrics().density;
         // config.xml, overlaid by config.json from a pushed theme (see Config and tools/theme.sh).
@@ -679,6 +687,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
 
         btnInputs = findViewById(R.id.btnInputs);
+        TextView btnCast = findViewById(R.id.btnCast);
+        if (btnCast != null) {
+            Intent cast = installedCastIntent();
+            btnCast.setVisibility(cast != null ? View.VISIBLE : View.GONE);
+            btnCast.setOnClickListener(v -> { Intent target = installedCastIntent(); if (target != null) open(target); });
+        }
         View btnSettings = findViewById(R.id.btnSettings);
         btnInputs.setOnClickListener(v -> showInputs());
         btnWifi.setOnClickListener(v -> openNetworkPill());
@@ -688,12 +702,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         });
         launcherSettingsButton = cfg.launcherSettingsButton;
         if (launcherSettingsButton) {
-            ((TextView) btnSettings).setText(R.string.launcher_settings);
-            ((TextView) btnSettings).setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_home_settings_pill, 0, 0, 0);
+            ((TextView) btnSettings).setText(R.string.more_settings);
+            ((TextView) btnSettings).setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, 0, 0);
         }
         btnSettings.setOnClickListener(v -> {
-            if (launcherSettingsButton) startActivityForResult(
-                    new Intent(this, LauncherSettingsActivity.class), LAUNCHER_SETTINGS_REQUEST);
+            if (launcherSettingsButton) showTopMenu();
             else open(systemIntent(Settings.ACTION_SETTINGS));
         });
         btnReorder = findViewById(R.id.btnReorder);
@@ -726,9 +739,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             showInputsPill = false;
             btnInputs.setVisibility(View.GONE);
             btnWifi.setVisibility(View.GONE);
-            ((TextView) btnSettings).setText(R.string.settings);
-            ((TextView) btnSettings).setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_settings, 0, 0, 0);
-            if (!iconOnlyButtons) makeIconOnly((TextView) btnSettings);
+            ((TextView) btnSettings).setText(R.string.more_settings);
+            ((TextView) btnSettings).setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, 0, 0);
             btnSettings.setOnClickListener(v -> showTopMenu());
             // The lone gear sits at the header's middle, not on its bottom line like the row of pills.
             LinearLayout topButtons = findViewById(R.id.topButtons);
@@ -760,13 +772,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 focusTile(singleRow ? lastFocused : lastFocused % COLUMNS);
                 return true;
             }
-            int firstButton = btnInputs.getVisibility() == View.VISIBLE ? R.id.btnInputs : firstTopButton().getId();
+            int firstButton = btnCast != null && btnCast.getVisibility() == View.VISIBLE ? R.id.btnCast
+                    : btnInputs.getVisibility() == View.VISIBLE ? R.id.btnInputs : firstTopButton().getId();
             int leftButton = rtlMenuBar ? R.id.btnSettings : firstButton;
             int rightButton = rtlMenuBar ? firstButton : R.id.btnSettings;
             if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) return v.getId() == leftButton;
             return keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && v.getId() == rightButton;
         };
         btnInputs.setOnKeyListener(pillKeys);
+        if (btnCast != null) btnCast.setOnKeyListener(pillKeys);
         btnWifi.setOnKeyListener(pillKeys);
         btnSettings.setOnKeyListener(pillKeys);
         btnReorder.setOnKeyListener(pillKeys);
@@ -864,7 +878,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean openLauncherSettingsIfAsked(Intent intent) {
         if (intent == null || !ACTION_LAUNCHER_SETTINGS.equals(intent.getAction())) return false;
         setIntent(new Intent(Intent.ACTION_MAIN));
-        startActivityForResult(new Intent(this, LauncherSettingsActivity.class), LAUNCHER_SETTINGS_REQUEST);
+        startActivityForResult(new Intent(this, LauncherSettingsActivity.class), LAUNCHER_SETTINGS_REQUEST,
+                ActivityOptions.makeCustomAnimation(this, R.anim.panel_enter_right, R.anim.panel_backdrop).toBundle());
         return true;
     }
 
@@ -876,6 +891,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        OriginalHome.resumeCustomIfAsked(this, intent);
         if (openLauncherSettingsIfAsked(intent)) return;
         if (openInputsIfAsked(intent)) return;
         if (intent == null || !intent.hasCategory(Intent.CATEGORY_HOME)) return;
@@ -908,6 +924,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onResume() {
         super.onResume();
+        if (settingsCover != null) {
+            View cover = settingsCover;
+            settingsCover = null;
+            cover.animate().translationX(root.getWidth()).setDuration(220)
+                    .withEndAction(() -> root.removeView(cover)).start();
+        }
+        if (OriginalHome.redirect(this)) return;
+        if (BootStartup.originalOnFirstHome(this)) return;
         // A festival that started or ended while Home was in the background: rebuild with or without it.
         if (festive != festival.active(LocalDate.now())) {
             recreate();
@@ -976,6 +1000,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == 43) {
+            libraryFocusPending = true;
+            reloadApps(false);
+            grid.post(this::focusLibrary);
+            return;
+        }
         if (requestCode == LAUNCHER_SETTINGS_REQUEST && resultCode == RESULT_OK
                 && data != null && data.getBooleanExtra(LauncherSettingsActivity.EXTRA_REORDER, false)) {
             getIntent().putExtra(LauncherSettingsActivity.EXTRA_REORDER, true);
@@ -1119,6 +1149,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onPause() {
         super.onPause();
+        menuKeyPressed = false;
         root.removeCallbacks(showIdleClock);
         endReorder();   // Home or another app while reordering keeps the order so far
         wallpaperPlayer.stop();
@@ -1192,6 +1223,24 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
     }
 
+    /** Menu is a global Home action, including when focus is on the header or All apps. */
+    private boolean handleMenuKey(KeyEvent event) {
+        if (event.getKeyCode() != KeyEvent.KEYCODE_MENU) return false;
+        if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) menuKeyPressed = true;
+        if (event.getAction() == KeyEvent.ACTION_UP) {
+            boolean pressed = menuKeyPressed;
+            menuKeyPressed = false;
+            if (pressed && !event.isCanceled()) {
+                if (openPopup != null) openPopup.dismiss();
+                else {
+                    if (reordering) endReorder();
+                    showTopMenu();
+                }
+            }
+        }
+        return true;
+    }
+
     /**
      * A Settings button sent as a keycode (settings_key_keycodes, e.g. 83 on TCL Google TV remotes) opens the same
      * thing HomeKeyService would. While that service runs it consumes the key first; without it (not enabled,
@@ -1224,18 +1273,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      */
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        if (themeEditorHint != null) return dispatchThemeEditor(event);
+        if (handleMenuKey(event)) return true;
         if (handleSettingsKey(event)) return true;
-        if (tileMenuEnabled && !reordering && openPopup == null && cardPrompt == null
-                && event.getKeyCode() == KeyEvent.KEYCODE_MENU) {
-            int position = focusedTilePosition();
-            if (position >= 0 && position < adapter.appCount()
-                    && !getPackageName().equals(adapter.packageAt(position))) {
-                if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
-                    onTileLongPress(position, getCurrentFocus());
-                }
-                return true;
-            }
-        }
         if (!reordering) return super.dispatchKeyEvent(event);
         if (dockEditing) return dispatchDockEdit(event);
         boolean down = event.getAction() == KeyEvent.ACTION_DOWN;
@@ -1558,25 +1598,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     @Override
     public void onLibraryRequested() {
-        if (appLibrary != null) appLibrary.close();
-        if (openPopup != null) openPopup.dismiss();
-        libraryFocusPending = false;
-        libraryFromTopBar = false;
-        appLibrary = new AppLibraryDialog(this, animations, reducedMotion, appLibrarySelection, adapter::containsPackage, () -> reloadApps(false), () -> {
-            appLibrary = null;
-            openPopup = null;
-            if (libraryFromTopBar) {
-                libraryFromTopBar = false;
-                btnLibraryTop.requestFocus();
-                return;
-            }
-            libraryFocusPending = true;
-            grid.post(() -> {
-                if (libraryFocusPending && appLibrary == null && hasWindowFocus() && !isFinishing()) focusLibrary();
-            });
-        });
-        openPopup = appLibrary.popup;
-        appLibrary.show();
+        libraryFocusPending = true;
+        startActivityForResult(new Intent(this, AppLibraryActivity.class), 43,
+                animations && !reducedMotion ? ActivityOptions.makeCustomAnimation(this,
+                        R.anim.panel_enter_right, R.anim.panel_backdrop).toBundle() : null);
     }
 
     @Override
@@ -2248,6 +2273,25 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     /** The first top-bar button after Inputs that is shown, in bar order (top_bar_apps, the network pill, ...); Settings is always there. */
+    private Intent installedCastIntent() {
+        PackageManager pm = getPackageManager();
+        for (String category : new String[]{Intent.CATEGORY_LEANBACK_LAUNCHER, Intent.CATEGORY_LAUNCHER}) {
+            for (ResolveInfo app : pm.queryIntentActivities(new Intent(Intent.ACTION_MAIN).addCategory(category), 0)) {
+                if (app.activityInfo == null || !app.activityInfo.exported) continue;
+                String label = String.valueOf(app.loadLabel(pm)).toLowerCase(java.util.Locale.ROOT);
+                String pkg = app.activityInfo.packageName;
+                if (pkg.equals(getPackageName())) continue;
+                if (label.contains("投屏") || label.contains("乐播") || label.contains("airscreen")
+                        || label.contains("miracast") || label.contains("screen mirroring")
+                        || pkg.contains("smartshare")) {
+                    return new Intent(Intent.ACTION_MAIN).addCategory(category)
+                            .setClassName(pkg, app.activityInfo.name).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                }
+            }
+        }
+        return null;
+    }
+
     private View firstTopButton() {
         ViewGroup bar = findViewById(R.id.topButtons);
         for (int i = 0; i < bar.getChildCount(); i++) {
@@ -2303,6 +2347,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     private void focusLibrary() {
         cancelPendingFocusScroll();
+        int tile = adapter.libraryTilePosition();
+        if (tile >= 0) {
+            focusTile(tile);
+            return;
+        }
         int position = adapter.appCount();
         if (!adapter.isLibraryAt(position)) return;
         RecyclerView.ViewHolder holder = grid.findViewHolderForAdapterPosition(position);
@@ -2785,10 +2834,53 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     private void open(Intent i) {
+        if (i == null) return;
         i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        try {
-            startActivity(i);
-        } catch (ActivityNotFoundException | SecurityException e) {
+        String action = i.getAction();
+        boolean settingsPage = action != null && action.startsWith("android.settings.")
+                || i.getComponent() != null && i.getComponent().getPackageName().contains("settings");
+        if (settingsPage && animations && !reducedMotion) {
+            if (settingsCover != null) return;
+            FrameLayout cover = new FrameLayout(this);
+            settingsCover = cover;
+            cover.setBackgroundColor(0xA6101420);
+            cover.setClickable(true);
+            LinearLayout loading = new LinearLayout(this);
+            loading.setOrientation(LinearLayout.HORIZONTAL);
+            loading.setGravity(Gravity.CENTER_VERTICAL);
+            int padding = (int)(24*density);
+            loading.setPadding(padding, padding, padding, padding);
+            GradientDrawable loadingBackground = new GradientDrawable();
+            loadingBackground.setColor(0xEE202736);
+            loadingBackground.setCornerRadius(24*density);
+            loading.setBackground(loadingBackground);
+            android.widget.ProgressBar spinner = new android.widget.ProgressBar(this);
+            loading.addView(spinner, new LinearLayout.LayoutParams((int)(30*density), (int)(30*density)));
+            TextView label = new TextView(this);
+            label.setTextColor(Color.WHITE);
+            label.setTextSize(23);
+            label.setText(R.string.opening_system_settings);
+            LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(-2, -2);
+            textParams.leftMargin = (int)(18*density);
+            loading.addView(label, textParams);
+            cover.addView(loading, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
+            root.addView(cover, new FrameLayout.LayoutParams(-1, -1));
+            cover.setAlpha(0f);
+            loading.setTranslationX(40*density);
+            loading.animate().translationX(0).setDuration(220)
+                    .setInterpolator(new android.view.animation.DecelerateInterpolator(1.5f)).start();
+            cover.animate().alpha(1f).setDuration(180)
+                    .withEndAction(() -> {
+                        try { startActivity(i); overridePendingTransition(0, 0); }
+                        catch (ActivityNotFoundException | SecurityException e) {
+                            Toast.makeText(this, R.string.not_available, Toast.LENGTH_SHORT).show();
+                            root.removeView(cover); settingsCover = null;
+                        }
+                    }).start();
+            return;
+        }
+        try { startActivity(i); }
+        catch (ActivityNotFoundException | SecurityException e) {
             Toast.makeText(this, R.string.not_available, Toast.LENGTH_SHORT).show();
         }
     }
@@ -3094,6 +3186,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             popup.dismiss();
             action.run();
         });
+        row.setOnKeyListener((v, key, event) -> handleMenuKey(event));
         rows.addView(row);
     }
 
@@ -3105,27 +3198,108 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         View panel = getLayoutInflater().inflate(R.layout.popup_inputs, root, false);
         LinearLayout rows = panel.findViewById(R.id.rows);
         PopupWindow popup = glassPopup(panel, (int) (220 * density));
-        // Inputs opens its own list once this one has closed.
-        if (showInputsMenuRow) addInputRow(rows, popup, R.drawable.ic_input, getString(R.string.inputs), -1, () -> root.post(this::showInputs));
-        addInputRow(rows, popup, R.drawable.ic_wifi, getString(R.string.quick_network), -1, this::openNetworkPill);
-        CharSequence network = wifiIconOnly ? btnWifi.getContentDescription() : btnWifi.getText();
-        if (!TextUtils.isEmpty(network)) {
-            TextView status = rows.getChildAt(rows.getChildCount() - 1).findViewById(R.id.status);
-            status.setText(network);
-            status.setVisibility(View.VISIBLE);
-        }
+        addInputRow(rows, popup, R.drawable.ic_picture, getString(R.string.adjust_desktop_theme), -1,
+                this::beginThemeEditor);
         addInputRow(rows, popup, R.drawable.ic_swap_vert, getString(R.string.reorder), -1, this::toggleReorder);
-        if (launcherSettingsButton) {
-            addInputRow(rows, popup, R.drawable.ic_home_settings_pill, getString(R.string.launcher_settings), -1,
-                    () -> startActivityForResult(new Intent(this, LauncherSettingsActivity.class), LAUNCHER_SETTINGS_REQUEST));
-        } else {
-            addInputRow(rows, popup, R.drawable.ic_settings, getString(R.string.settings), -1,
-                    () -> open(systemIntent(Settings.ACTION_SETTINGS)));
-        }
+        addInputRow(rows, popup, R.drawable.ic_restore_home, getString(R.string.restore_original_home), -1,
+                () -> OriginalHome.showRestoreDialog(this));
+        addInputRow(rows, popup, R.drawable.ic_settings, getString(R.string.launcher_settings), -1,
+                () -> startActivityForResult(new Intent(this, LauncherSettingsActivity.class), LAUNCHER_SETTINGS_REQUEST,
+                ActivityOptions.makeCustomAnimation(this, R.anim.panel_enter_right, R.anim.panel_backdrop).toBundle()));
+        addInputRow(rows, popup, R.drawable.ic_system_settings, getString(R.string.tv_settings), -1,
+                () -> open(systemIntent(Settings.ACTION_SETTINGS)));
         panel.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
         popup.setWidth(Math.max((int) (220 * density), Math.min(panel.getMeasuredWidth(), (int) (360 * density))));
         dropIn(popup, panel, anchor, getResources().getBoolean(R.bool.rtl_menu_bar) ? Gravity.START : Gravity.END);
         rows.getChildAt(0).requestFocus();
+    }
+
+    private void beginThemeEditor() {
+        if (reordering) endReorder();
+        themeBefore = Config.load(this);
+        File dir = Config.dir(this);
+        themePictures = WallpaperRotation.images(dir == null ? null : new File(dir, "wallpapers"));
+        themePictures.addAll(VideoWallpaper.videos(dir));
+        SharedPreferences prefs = getSharedPreferences(Config.SETTINGS_NAME, MODE_PRIVATE);
+        String choice = prefs.getString(Config.WALLPAPER_CHOICE_KEY, null);
+        String current = choice == null || "images".equals(choice)
+                ? getSharedPreferences("wallpaper_rotation", MODE_PRIVATE).getString("image", "")
+                : choice.startsWith("video:") ? choice.substring(6) : choice;
+        themePictureIndex = "apple".equals(choice) ? themePictures.size() : 0;
+        for (int i = 0; i < themePictures.size(); i++)
+            if (themePictures.get(i).getName().equals(current)) themePictureIndex = i;
+        themeEditorHint = new TextView(this);
+        themeEditorHint.setTextSize(18);
+        themeEditorHint.setTextColor(Color.WHITE);
+        themeEditorHint.setGravity(Gravity.CENTER);
+        themeEditorHint.setPadding((int)(22*density), (int)(12*density), (int)(22*density), (int)(12*density));
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(0xE62A2D38); bg.setCornerRadius(22*density);
+        themeEditorHint.setBackground(bg);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM);
+        lp.bottomMargin = (int)(180*density);
+        root.addView(themeEditorHint, lp);
+        previewTheme();
+    }
+
+    private void previewTheme() {
+        boolean apple = themePictureIndex == themePictures.size();
+        File file = apple ? null : themePictures.get(themePictureIndex);
+        sky.setIntensity(apple ? 65 : 0);
+        ambientGlow = apple;
+        appGlow = apple;
+        ambient.setVisibility(apple ? View.VISIBLE : View.GONE);
+        if (apple) {
+            heroShown = false;
+            focusTile(0);
+            grid.post(() -> {
+                RecyclerView.ViewHolder first = grid.findViewHolderForAdapterPosition(0);
+                if (first != null) onTileFocused(0, first.itemView.findViewById(R.id.card));
+            });
+        }
+        wallpaperPlayer.preview(file, animations && !reducedMotion);
+        String label = apple ? getString(R.string.apple_desktop)
+                : file.getName().endsWith(".mp4") ? VideoWallpaper.title(file)
+                : "03-moon-right.png".equals(file.getName()) ? getString(R.string.theme_moon_night)
+                : getString(R.string.desktop_wallpaper_number, themePictureIndex + 1);
+        themeEditorHint.setText(getString(R.string.theme_editor_hint, label,
+                themePictureIndex + 1, themePictures.size() + 1));
+    }
+
+    private boolean dispatchThemeEditor(KeyEvent event) {
+        int code = event.getKeyCode();
+        if (code == KeyEvent.KEYCODE_VOLUME_UP || code == KeyEvent.KEYCODE_VOLUME_DOWN
+                || code == KeyEvent.KEYCODE_VOLUME_MUTE || code == KeyEvent.KEYCODE_HOME)
+            return super.dispatchKeyEvent(event);
+        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+            if (code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                themePictureIndex = Math.floorMod(themePictureIndex + (code == KeyEvent.KEYCODE_DPAD_RIGHT ? 1 : -1),
+                        themePictures.size() + 1);
+                previewTheme();
+            }
+            return true;
+        }
+        boolean save = code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER;
+        boolean cancel = code == KeyEvent.KEYCODE_BACK || code == KeyEvent.KEYCODE_ESCAPE || code == KeyEvent.KEYCODE_MENU;
+        if (save || cancel) {
+            if (save) getSharedPreferences(Config.SETTINGS_NAME, MODE_PRIVATE).edit()
+                    .putString(Config.WALLPAPER_CHOICE_KEY, themePictureIndex == themePictures.size()
+                            ? "apple" : (themePictures.get(themePictureIndex).getName().endsWith(".mp4") ? "video:" : "")
+                            + themePictures.get(themePictureIndex).getName()).commit();
+            else {
+                // Rebuild only the wallpaper controller; keep Home and its focus/layout alive.
+                wallpaperPlayer.close();
+                wallpaperPlayer = new WallpaperPlayer(this, root, themeBefore);
+                wallpaperPlayer.start();
+                sky.setIntensity(themeBefore.skyIntensity);
+                ambientGlow = themeBefore.ambientGlow;
+                appGlow = themeBefore.appGlow;
+                ambient.setVisibility(ambientGlow ? View.VISIBLE : View.GONE);
+            }
+            root.removeView(themeEditorHint);
+            themeEditorHint = null;
+        }
+        return true;
     }
 
     /** The header opens launcher settings directly; hold OK keeps the extra home actions available. */
@@ -3171,6 +3345,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         View panel = getLayoutInflater().inflate(R.layout.popup_inputs, root, false);
         LinearLayout rows = panel.findViewById(R.id.rows);
         PopupWindow popup = glassPopup(panel, (int) (200 * density));
+        addSettingsMenuRow(rows, popup, R.string.library_open, () -> card.performClick());
         if (dockRow && position < adapter.movableCount()) {
             boolean inDock = position < COLUMNS;
             addSettingsMenuRow(rows, popup, inDock ? R.string.tile_replace_in_dock : R.string.tile_add_to_dock,
@@ -3191,6 +3366,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // Some firmware has no App info page at all; a row that only toasts "can't open" helps nobody.
         Intent info = SystemSettings.appInfo(this, pkg);
         if (info != null) addSettingsMenuRow(rows, popup, R.string.library_app_info, () -> open(info));
+        Intent uninstall = SystemSettings.uninstall(this, pkg);
+        if (uninstall != null) addSettingsMenuRow(rows, popup, R.string.library_uninstall, () -> open(uninstall));
         panel.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
         popup.setWidth(Math.max((int) (200 * density), panel.getMeasuredWidth()));
         // Dock tiles sit near the bottom of the screen: open the menu above the tile when it would not fit below.
@@ -3224,6 +3401,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // The OK-up after opening the menu must not activate its first row.
         final boolean[] pressed = {false};
         row.setOnKeyListener((v, code, event) -> {
+            if (handleMenuKey(event)) return true;
             if (code != KeyEvent.KEYCODE_DPAD_CENTER && code != KeyEvent.KEYCODE_ENTER) return false;
             if (event.getAction() == KeyEvent.ACTION_DOWN) {
                 if (event.getRepeatCount() == 0) pressed[0] = true;

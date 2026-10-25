@@ -33,6 +33,7 @@ import java.util.concurrent.Executors;
 final class WallpaperPlayer {
     private final FrameLayout root;
     private final ImageView image;
+    private VideoWallpaper video;
     private final int backgroundColor;
     private final List<File> files;
     private final long interval;
@@ -51,6 +52,8 @@ final class WallpaperPlayer {
     private boolean active;
     private boolean closed;
     private boolean loading;
+    private boolean manualPreview;
+    private volatile int previewGeneration;
     private String displayed = "";
     /** wallpaper_captions: the shown picture's name from wallpapers/captions.txt; null when off or there are none. */
     private final TextView caption;
@@ -91,11 +94,10 @@ final class WallpaperPlayer {
         names = config.wallpaperCaptions && config.wallpaperEnabled && !files.isEmpty()
                 ? WallpaperCaptions.read(files.get(0).getParentFile()) : Collections.emptyMap();
         caption = names.isEmpty() ? null : makeCaption(context, root);
-        if (config.wallpaperEnabled && !files.isEmpty()) {
-            root.addView(image, 0, new FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-            showFirst();
-        }
+        root.addView(image, 0, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        if (config.wallpaperEnabled && !files.isEmpty()) showFirst();
+        video = VideoWallpaper.create(context, root, config);
     }
 
     /**
@@ -130,11 +132,66 @@ final class WallpaperPlayer {
 
     void start() {
         active = true;
+        if (video != null) video.start();
         update();
     }
 
     void stop() {
         active = false;
+        if (video != null) video.stop();
+    }
+
+    void step(int direction) {
+        if (video != null) { video.step(direction); return; }
+        if (files.isEmpty()) return;
+        int index = 0;
+        for (int i = 0; i < files.size(); i++) if (files.get(i).getName().equals(displayed)) index = i;
+        File next = files.get(Math.floorMod(index + direction, files.size()));
+        preferences.edit().putString("image", next.getName()).putLong("changed", System.currentTimeMillis()).apply();
+        update();
+    }
+
+    /** Previews in place; decoding never blocks D-pad navigation or recreates Home. */
+    void preview(File file, boolean animate) {
+        manualPreview = true;
+        final int generation = ++previewGeneration;
+        if (video != null) { video.close(); video = null; }
+        if (file != null && file.getName().endsWith(".mp4")) {
+            video = VideoWallpaper.preview(root.getContext(), root, file, (dimColor >>> 24) * 100 / 255);
+            if (active) video.start();
+            return;
+        }
+        if (file == null) {
+            root.setBackgroundColor(0xFF101426);
+            image.animate().cancel();
+            if (animate) image.animate().alpha(0f).setDuration(220).start();
+            else image.setAlpha(0f);
+            return;
+        }
+        decoder.execute(() -> {
+            if (closed || generation != previewGeneration) return;
+            Bitmap bitmap = decode(file);
+            root.post(() -> {
+                if (closed || generation != previewGeneration) {
+                    if (bitmap != null) bitmap.recycle();
+                    return;
+                }
+                if (bitmap == null) return;
+                // One previous frame is retained only for the short dissolve.
+                ImageView old = new ImageView(root.getContext());
+                old.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                old.setImageDrawable(image.getDrawable());
+                int index = root.indexOfChild(image);
+                if (animate && index >= 0) root.addView(old, index + 1,
+                        new FrameLayout.LayoutParams(-1, -1));
+                show(bitmap);
+                image.animate().cancel();
+                image.setAlpha(1f);
+                displayed = file.getName();
+                if (animate) old.animate().alpha(0f).setDuration(220)
+                        .withEndAction(() -> { root.removeView(old); old.setImageDrawable(null); }).start();
+            });
+        });
     }
 
     /** Drops the wallpaper texture when Home is hidden and Android asks the process to free memory. */
@@ -162,11 +219,15 @@ final class WallpaperPlayer {
     void close() {
         active = false;
         closed = true;
+        if (video != null) video.close();
         decoder.shutdownNow();
+        image.animate().cancel();
+        root.removeView(image);
+        if (caption != null) root.removeView(caption);
     }
 
     void update() {
-        if (!active || closed || loading || files.isEmpty()) return;
+        if (!active || closed || loading || manualPreview || files.isEmpty()) return;
         String previous = preferences.getString("image", "");
         // A picture outside the time of day's group (the group changed) is replaced at once, not after the interval.
         List<File> playable = playable();
@@ -182,7 +243,7 @@ final class WallpaperPlayer {
             Bitmap bitmap = decode(next);
             root.post(() -> {
                 loading = false;
-                if (closed || !active) {
+                if (closed || !active || manualPreview) {
                     if (bitmap != null) bitmap.recycle();
                     return;
                 }

@@ -26,6 +26,10 @@ android {
         }
     }
 
+    androidResources {
+        noCompress += ['mp4']
+    }
+
     packagingOptions {
         resources {
             // Kotlin metadata pulled in by AndroidX's dependencies. This launcher is plain Java and never reads it;

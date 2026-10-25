@@ -1,6 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Home</string>
+    <string name="wireless_cast">Wireless casting</string>
+    <string name="all_apps_page_hint">OK opens an app · Menu or hold OK for actions · Back returns Home</string>
+    <string name="previous_background">Previous background</string>
+    <string name="next_background">Next background</string>
+    <string name="boot_launcher_state">Open this Home at power-on: %1$s</string>
+    <string name="boot_launcher_hint">On opens this Home after a full boot. Off opens the original Home when available. Some TVs also require selecting this app as the default Home.</string>
+    <string name="voice_assistant">Original voice assistant</string>
+    <string name="voice_unavailable">The system voice entry is unavailable. Try the remote microphone button or the original Home.</string>
+    <string name="more_settings">More</string>
+    <string name="more_inputs">HDMI / inputs</string>
+    <string name="more_streaming">Open Moonlight streaming</string>
+    <string name="restore_original_home">Restore original Home</string>
+    <string name="restore_original_home_message">Return to %1$s. Home will continue to open the original launcher. Apps, settings and wallpapers are retained. Open this launcher from the original Home’s app list to switch back.</string>
+    <string name="restore_home_unavailable">The original Home is unavailable. This launcher remains available.</string>
+    <string name="all_apps_button">All apps ›</string>
+    <string name="wallpaper_video_rotation">Aerial videos · automatic rotation</string>
+    <string name="wallpaper_video_item">Aerial · %1$s</string>
+    <string name="app_name">Apple桌面</string>
     <string name="inputs">Inputs</string>
     <string name="wifi">Wi-Fi</string>
     <string name="settings">Settings</string>
@@ -54,15 +71,15 @@
     <string name="wallpaper_state">Wallpaper: %1$s</string>
     <string name="wallpaper_none">None</string>
     <string name="wallpaper_applied">Wallpaper changed</string>
-    <string name="wallpaper_theme_default">Theme default</string>
+    <string name="wallpaper_theme_default">Default background</string>
     <string name="animations_state">Animations: %1$s</string>
     <string name="advanced_effects">Advanced effects</string>
     <string name="advanced_effects_state">Advanced effects: %1$s</string>
     <string name="open_on_start_label">Open on start</string>
     <string name="open_on_start_state">Open on start: %1$s</string>
     <string name="advanced_effects_warning">Adds a lifted tile, icon zoom and smooth colour transitions. May increase memory use; the actual difference depends on your TV.</string>
-    <string name="follow_theme">Follow theme (reset on-TV choices)</string>
-    <string name="follow_theme_hint">Uses the current theme or built-in layout and motion settings. Pushing or resetting a theme also clears your on-TV choices.</string>
+    <string name="follow_theme">Restore default background</string>
+    <string name="follow_theme_hint">Restores only the background. Keeps layout, app order and startup settings.</string>
     <string name="tv_settings">TV system settings</string>
     <string name="quick_picture">Display</string>
     <string name="quick_network">Network</string>
@@ -110,6 +127,7 @@
     <string name="library_remove_shortcut">Remove from Home</string>
     <string name="library_open">Open</string>
     <string name="library_app_info">App info</string>
+    <string name="library_uninstall">Uninstall…</string>
     <string name="library_save_failed">Could not save the shortcut</string>
     <string name="library_recent">New · Add to Home</string>
     <string name="library_hint_add">Press to add to Home · Hold for options</string>
@@ -148,4 +166,12 @@
     <!-- Cinematic top shelf (cinematic_home): the line under the focused dock app's name; %1$s is when it was
          last opened, e.g. "5 minutes ago" or "yesterday, 9:40 pm". -->
     <string name="last_opened">Last opened %1$s</string>
+    <string name="wallpaper_time_of_day">Scenery by time of day</string>
+    <string name="apple_desktop">Apple desktop</string>
+    <string name="adjust_desktop_theme">Adjust desktop theme</string>
+    <string name="desktop_wallpaper_number">Wallpaper %1$d</string>
+    <string name="theme_editor_hint">←  %1$s  ·  %2$d / %3$d  →    OK to save · Back to cancel</string>
+    <string name="opening_system_settings">Opening system settings…</string>
+    <string name="theme_moon_night">Moonlit night</string>
+    <string name="home_visibility_state">Show on Home: %1$s</string>
 </resources>

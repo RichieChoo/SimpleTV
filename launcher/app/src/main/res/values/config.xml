@@ -17,10 +17,12 @@
 
     <!-- Apps pinned to the dock row at the bottom, in this order. Missing apps are skipped. -->
     <string-array name="dock_apps">
-        <item>com.netflix.ninja</item>
-        <item>com.amazon.amazonvideo.livingroom</item>
-        <item>com.google.android.youtube.tv</item>
-        <item>in.startv.hotstar</item>
+        <item>com.limelight</item>
+        <item>com.github.kr328.clash</item>
+        <item>com.ktcp.video</item>
+        <item>com.gitvdemo.video</item>
+        <item>com.xiaodianshi.tv.yst</item>
+        <item>com.cibn.tv</item>
     </string-array>
     <!-- With fewer dock_apps than columns (or a dock app that is not installed), the free dock slots take
          the first grid apps, so the dock never shows a gap. false leaves them empty (#162); a theme can
@@ -96,7 +98,7 @@
     <!-- Inputs menu: HDMI and AV rows normally open with ACTION_VIEW on the input's channel URI, which the
          Live TV app handles. Where nothing answers that, this action is sent with the same URI instead
          (XGIMI projectors: com.xgimi.action.hdmiPlayer). Leave empty to omit. -->
-    <string name="input_action" translatable="false"></string>
+    <string name="input_action" translatable="false">com.xiaomi.mitv.tvplayer.EXTSRC_PLAY</string>
     <!-- Inputs menu: a scheme to send the input's passthrough URI with instead of content:// (and no channel MIME
          type). YaOS: live-tv. Its source player answers live-tv://android.media.tv/passthrough/<input>, while the
          content:// URI goes to its channel player, which resumes the last film it played. Leave empty to omit. -->
@@ -127,6 +129,13 @@
          com.xiaomi.mitv.tvplayer.EXTSRC_PLAY and MStar numbers: HW5=23, HW6=24, HW7=25, HW8=-, HW2=2,
          HW3=-, HW4=- (see examples/redmi-mitv-mftp0). Leave empty to omit. -->
     <string-array name="input_sources" translatable="false">
+        <item>HW5=23</item>
+        <item>HW6=24</item>
+        <item>HW7=25</item>
+        <item>HW8=-</item>
+        <item>HW2=2</item>
+        <item>HW3=-</item>
+        <item>HW4=-</item>
     </string-array>
 
     <!-- Remote buttons that open Settings, by Linux scancode (HOME_KEY_SERVICE=1 build-and-install.sh). Remotes
@@ -303,7 +312,7 @@
 
     <!-- Tiles per row in the grid; the dock always has this many slots. Tiles are 180dp wide at 4 columns and
          shrink to fit from 5 up (about 144dp at 5, 117dp at 6 on a 1080p TV). -->
-    <integer name="columns">4</integer>
+    <integer name="columns">6</integer>
 
     <!-- Basic motion is on; advanced effects are opt-in in the launcher's own Settings screen. -->
     <bool name="animations">true</bool>

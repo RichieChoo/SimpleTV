@@ -458,9 +458,33 @@ final class Config {
         boolean applied = false;
 
         File dir = dir(ctx);
+        if (dir != null) {
+            File bundledMoon = new File(dir, "wallpapers/03-moon-right.png");
+            if (!bundledMoon.isFile()) {
+                File parent = bundledMoon.getParentFile();
+                if (parent != null) parent.mkdirs();
+                File partial = new File(parent, "03-moon-right.part");
+                try (InputStream in = ctx.getAssets().open("wallpapers/03-moon-right.png");
+                     FileOutputStream out = new FileOutputStream(partial)) {
+                    byte[] buffer = new byte[8192]; int count;
+                    while ((count = in.read(buffer)) != -1) out.write(buffer, 0, count);
+                    out.flush();
+                    partial.renameTo(bundledMoon);
+                } catch (IOException ignored) { partial.delete(); }
+            }
+        }
         File file = dir != null ? new File(dir, FILE_NAME) : null;
         boolean mounted = Environment.MEDIA_MOUNTED.equals(Environment.getExternalStorageState());
         JSONObject json = readOverlay(ctx, file, mounted);
+        if (json == null) {
+            try (InputStream in = ctx.getAssets().open("simpletv-default.json")) {
+                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                byte[] buffer = new byte[4096];
+                int count;
+                while ((count = in.read(buffer)) != -1) out.write(buffer, 0, count);
+                json = new JSONObject(new String(out.toByteArray(), StandardCharsets.UTF_8));
+            } catch (Exception ignored) { }
+        }
         if (json != null) {
             applied = true;
             dock = stringList(json, "dock_apps", dock);
@@ -593,6 +617,15 @@ final class Config {
             wallpaper = chosen.isEmpty() ? null : chosen.get(0);
             wallpaperEnabled = !chosen.isEmpty();
         }
+        if ("apple".equals(wallpaperChoice)) {
+            wallpapers.clear();
+            wallpaper = null;
+            wallpaperEnabled = false;
+            background = 0xFF101426;
+            skyIntensity = 65;
+            ambientGlow = true;
+            appGlow = true;
+        }
         // A festive skin comes only from a theme; config.xml has no festival.
         Festival festival = json == null ? Festival.NONE : Festival.parse(string(json, "festival", ""),
                 string(json, "festival_until", ""), string(json, "greeting", ""), string(json, "accent_color", ""));
@@ -643,18 +676,8 @@ final class Config {
         String token = revisionToken(revision);
         String signature = fileStamp(config) + ":" + token;
         String seen = choices.getString(THEME_SIGNATURE_KEY, null);
-        if (seen == null) {
-            // Existing preferences survive an app upgrade, unless the first launch follows an
-            // explicit theme push or reset by the updated tools.
-            SharedPreferences.Editor editor = choices.edit();
-            if (!"absent".equals(token)) editor.remove("columns").remove("animations")
-                    .remove("advanced_effects").remove(ROWS_BELOW_DOCK_KEY).remove(WALLPAPER_CHOICE_KEY)
-                    .remove(DOCK_OPACITY_KEY);
-            editor.putString(THEME_SIGNATURE_KEY, signature).commit();
-        } else if (!seen.equals(signature)) {
-            choices.edit().remove("columns").remove("animations").remove("advanced_effects")
-                    .remove(ROWS_BELOW_DOCK_KEY).remove(WALLPAPER_CHOICE_KEY).remove(DOCK_OPACITY_KEY)
-                    .putString(THEME_SIGNATURE_KEY, signature).commit();
+        if (!signature.equals(seen)) {
+            choices.edit().putString(THEME_SIGNATURE_KEY, signature).commit();
         }
     }
 

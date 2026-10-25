@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">בית</string>
+    <string name="app_name">Apple桌面</string>
     <string name="inputs">כניסות</string>
     <string name="wifi">Wi-Fi</string>
     <string name="settings">הגדרות</string>
@@ -144,4 +144,30 @@
     <string name="race_countdown_hours">%1$d שע׳ %2$d דק׳</string>
     <string name="race_countdown_days">%1$d ימ׳ %2$d שע׳</string>
     <string name="last_opened">פתיחה אחרונה: %1$s</string>
+    <string name="wireless_cast">שיקוף אלחוטי</string>
+    <string name="all_apps_page_hint">אישור פותח יישום · תפריט או לחיצה ארוכה לפעולות · חזרה למסך הבית</string>
+    <string name="previous_background">הרקע הקודם</string>
+    <string name="next_background">הרקע הבא</string>
+    <string name="boot_launcher_state">פתיחת מסך הבית בהפעלה: %1$s</string>
+    <string name="boot_launcher_hint">בהפעלה תיפתח סביבת הבית הזו. כשהאפשרות כבויה ייפתח מסך הבית המקורי אם הוא זמין. בחלק מהטלוויזיות יש לבחור גם מסך בית כברירת מחדל.</string>
+    <string name="voice_assistant">העוזר הקולי המקורי</string>
+    <string name="voice_unavailable">העוזר הקולי אינו זמין. נסו את לחצן המיקרופון בשלט או את מסך הבית המקורי.</string>
+    <string name="more_settings">עוד</string>
+    <string name="more_inputs">HDMI / כניסות</string>
+    <string name="more_streaming">פתיחת הזרמה ב־Moonlight</string>
+    <string name="restore_original_home">שחזור מסך הבית המקורי</string>
+    <string name="restore_original_home_message">חזרה אל %1$s. לחצן הבית ימשיך לפתוח את מסך הבית המקורי. היישומים, ההגדרות והרקעים יישמרו. פתחו יישום זה מרשימת היישומים כדי לחזור.</string>
+    <string name="restore_home_unavailable">מסך הבית המקורי אינו זמין. מסך בית זה נשאר זמין.</string>
+    <string name="all_apps_button">כל היישומים ›</string>
+    <string name="wallpaper_video_rotation">סרטוני אוויר · החלפה אוטומטית</string>
+    <string name="wallpaper_video_item">צילום אווירי · %1$s</string>
+    <string name="library_uninstall">הסרת התקנה…</string>
+    <string name="wallpaper_time_of_day">נוף לפי השעה</string>
+    <string name="apple_desktop">מסך הבית של Apple</string>
+    <string name="adjust_desktop_theme">התאמת ערכת הנושא</string>
+    <string name="desktop_wallpaper_number">רקע %1$d</string>
+    <string name="theme_editor_hint">← %1$s · %2$d / %3$d → אישור לשמירה · חזרה לביטול</string>
+    <string name="opening_system_settings">פתיחת הגדרות המערכת…</string>
+    <string name="theme_moon_night">לילה לאור ירח</string>
+    <string name="home_visibility_state">הצגה במסך הבית: %1$s</string>
 </resources>

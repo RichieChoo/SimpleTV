@@ -1,6 +1,7 @@
 package com.gathin.tvhome;
 
 import android.app.Activity;
+import android.app.ActivityOptions;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
@@ -21,6 +22,10 @@ import java.util.List;
 
 /** Remote-friendly settings owned by the launcher; system settings stay one row away. */
 public final class LauncherSettingsActivity extends Activity {
+    @Override public void finish() {
+        super.finish();
+        overridePendingTransition(R.anim.panel_backdrop, R.anim.panel_exit_right);
+    }
     static final String EXTRA_REORDER = "com.gathin.tvhome.extra.REORDER_FROM_SETTINGS";
     private SharedPreferences choices;
     private final TextView[] columnChoices = new TextView[4];
@@ -101,6 +106,11 @@ public final class LauncherSettingsActivity extends Activity {
         }
         wallpaperChoice = findViewById(R.id.wallpaperChoice);
         wallpaperChoice.setOnClickListener(v -> showWallpaperPicker());
+        findViewById(R.id.bootLauncherChoice).setOnClickListener(v -> {
+            BootStartup.setEnabled(this, !BootStartup.enabled(this));
+            changed();
+            refresh();
+        });
         animationsChoice = findViewById(R.id.animationsChoice);
         animationsChoice.setOnClickListener(v -> {
             animations = !animations;
@@ -130,16 +140,9 @@ public final class LauncherSettingsActivity extends Activity {
         }
         followThemeChoice = findViewById(R.id.followThemeChoice);
         followThemeChoice.setOnClickListener(v -> {
-            if (!hasOnTvChoices()) return;
-            choices.edit().remove("columns").remove(Config.ROWS_BELOW_DOCK_KEY).remove("animations")
-                    .remove("advanced_effects").remove(Config.WALLPAPER_CHOICE_KEY)
-                    .remove(Config.DOCK_OPACITY_KEY).remove(OpenOnStart.KEY).commit();
-            Config current = Config.load(this);
-            columns = current.columns;
-            rowsBelowDock = current.rowsBelowDock;
-            dockOpacity = current.dockOpacity;
-            animations = current.animations;
-            advancedEffects = current.animations && current.advancedEffects;
+            SharedPreferences.Editor editor = choices.edit();
+            BackgroundReset.reset(editor::remove);
+            editor.commit();
             changed();
             refresh();
         });
@@ -150,6 +153,10 @@ public final class LauncherSettingsActivity extends Activity {
         findViewById(R.id.tvSettingsChoice).setOnClickListener(v ->
                 open(SystemSettings.intent(this, Settings.ACTION_SETTINGS)));
         refresh();
+        if (config.singleRow) {
+            findViewById(R.id.rowsBelowDockLabel).setVisibility(View.GONE);
+            ((View) findViewById(R.id.rows0).getParent()).setVisibility(View.GONE);
+        }
         if (config.launcherSettingsButton) reorderChoice.requestFocus();
         else columnChoices[Math.max(0, Math.min(columns - 4, 3))].requestFocus();
     }
@@ -167,22 +174,33 @@ public final class LauncherSettingsActivity extends Activity {
         // A theme with a single wallpaper.jpg offers that picture too (Config maps the choice back to it).
         File single = dir == null ? null : new File(dir, Config.WALLPAPER_NAME);
         if (single != null && single.isFile()) images.add(0, single);
-        String[] labels = new String[images.size() + 1];
-        for (int i = 0; i < images.size(); i++) labels[i] = images.get(i).getName();
-        labels[images.size()] = getString(R.string.wallpaper_none);
+        List<String> values = new ArrayList<>();
+        List<String> names = new ArrayList<>();
+        List<File> videos = VideoWallpaper.videos(dir);
+        values.add("images");
+        names.add(getString(R.string.wallpaper_time_of_day));
+        if (!videos.isEmpty()) {
+            values.add("videos");
+            names.add(getString(R.string.wallpaper_video_rotation));
+            for (File video : videos) {
+                values.add("video:" + video.getName());
+                names.add(getString(R.string.wallpaper_video_item, VideoWallpaper.title(video)));
+            }
+        }
+        for (File image : images) {
+            values.add(image.getName());
+            names.add(image.getName());
+        }
+        values.add("none");
+        names.add(getString(R.string.wallpaper_none));
+        String[] labels = names.toArray(new String[0]);
         String current = choices.getString(Config.WALLPAPER_CHOICE_KEY, null);
-        int checked = "none".equals(current) ? images.size()
-                : indexOf(images, current);
+        int checked = current == null ? 0 : values.indexOf(current);
         new AlertDialog.Builder(this)
                 .setTitle(R.string.wallpaper_label)
                 .setSingleChoiceItems(labels, checked, (dialog, which) -> {
                     dialog.dismiss();
-                    if (which == images.size()) {
-                        choices.edit().putString(Config.WALLPAPER_CHOICE_KEY, "none").apply();
-                    } else {
-                        choices.edit().putString(Config.WALLPAPER_CHOICE_KEY,
-                                images.get(which).getName()).apply();
-                    }
+                    choices.edit().putString(Config.WALLPAPER_CHOICE_KEY, values.get(which)).apply();
                     changed();
                     Toast.makeText(this, R.string.wallpaper_applied, Toast.LENGTH_SHORT).show();
                     refresh();
@@ -270,6 +288,8 @@ public final class LauncherSettingsActivity extends Activity {
     }
 
     private void refresh() {
+        ((TextView) findViewById(R.id.bootLauncherChoice)).setText(getString(R.string.boot_launcher_state,
+                getString(BootStartup.enabled(this) ? R.string.on : R.string.off)));
         for (int i = 0; i < columnChoices.length; i++) {
             columnChoices[i].setSelected(columns == i + 4);
         }
@@ -286,12 +306,19 @@ public final class LauncherSettingsActivity extends Activity {
         advancedChoice.setEnabled(animations);
         advancedChoice.setAlpha(animations ? 1f : 0.5f);
         String wallpaperCurrent = choices.getString(Config.WALLPAPER_CHOICE_KEY, null);
+        String wallpaperLabel = "videos".equals(wallpaperCurrent)
+
+                ? getString(R.string.wallpaper_video_rotation)
+                : wallpaperCurrent != null && wallpaperCurrent.startsWith("video:")
+                ? getString(R.string.wallpaper_video_item, VideoWallpaper.title(new File(wallpaperCurrent.substring(6))))
+                : "apple".equals(wallpaperCurrent) ? getString(R.string.apple_desktop)
+                : "images".equals(wallpaperCurrent) ? getString(R.string.wallpaper_time_of_day)
+                : "none".equals(wallpaperCurrent) ? getString(R.string.wallpaper_none)
+                : wallpaperCurrent != null ? wallpaperCurrent : getString(R.string.wallpaper_theme_default);
         wallpaperChoice.setText(getString(R.string.wallpaper_state,
-                "none".equals(wallpaperCurrent) ? getString(R.string.wallpaper_none)
-                        : wallpaperCurrent != null ? wallpaperCurrent
-                        : getString(R.string.wallpaper_theme_default)));
+                wallpaperLabel));
         openOnStartChoice.setText(getString(R.string.open_on_start_state, openOnStartLabel()));
-        followThemeChoice.setSelected(!hasOnTvChoices());
+        followThemeChoice.setSelected(!choices.contains(Config.WALLPAPER_CHOICE_KEY));
     }
 
     private boolean hasOnTvChoices() {
@@ -303,7 +330,8 @@ public final class LauncherSettingsActivity extends Activity {
 
     private void open(Intent intent) {
         try {
-            startActivity(intent);
+            startActivity(intent, animations ? ActivityOptions.makeCustomAnimation(this,
+                    R.anim.panel_enter_right, R.anim.panel_backdrop).toBundle() : null);
         } catch (ActivityNotFoundException | SecurityException e) {
             Toast.makeText(this, R.string.not_available, Toast.LENGTH_LONG).show();
         }

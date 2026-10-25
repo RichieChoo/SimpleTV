@@ -8,6 +8,8 @@
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <!-- Needed since Android 10 to read the Wi-Fi network name for the network pill. Never requested at
          runtime: build-and-install grants it with pm grant, so lint's Android 12 "ask for COARSE with
@@ -25,6 +27,14 @@
     <!-- Android 11+ package visibility: lets the launcher list the TV apps it shows as tiles, and the
          apps that declare a module card (docs/specs/card.md). -->
     <queries>
+        <package android:name="com.xiaomi.voicecontrol" />
+        <intent><action android:name="android.intent.action.VOICE_ASSIST" /></intent>
+        <intent><action android:name="android.intent.action.ASSIST" /></intent>
+        <intent><action android:name="android.intent.action.VOICE_COMMAND" /></intent>
+        <intent>
+            <action android:name="android.intent.action.DELETE" />
+            <data android:scheme="package" />
+        </intent>
         <!-- The standard settings handlers, so package visibility doesn't hide them and send the pills to a vendor fallback by mistake. -->
         <intent>
             <action android:name="android.settings.SETTINGS" />
@@ -71,12 +81,18 @@
     </queries>
 
     <application
+        android:name=".DesktopApplication"
         android:label="@string/app_name"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@drawable/app_logo"
+        android:roundIcon="@drawable/app_logo"
         android:banner="@drawable/banner"
         android:theme="@style/Theme.TvHome"
         android:allowBackup="false"
         android:localeConfig="@xml/locales_config">
+
+        <receiver android:name=".BootStartup" android:exported="false">
+            <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /></intent-filter>
+        </receiver>
 
         <activity
             android:name=".MainActivity"
@@ -92,7 +108,11 @@
                 <category android:name="android.intent.category.HOME" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
-            <!-- Listed in the TV's own app list, so it can be opened from the stock home screen too. -->
+        </activity>
+        <!-- Separate app icon remains a way back after restoring the original Home experience. -->
+        <activity android:name=".LauncherEntryActivity" android:exported="true"
+            android:excludeFromRecents="true" android:noHistory="true"
+            android:theme="@android:style/Theme.NoDisplay">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
@@ -104,6 +124,8 @@
             android:exported="false"
             android:excludeFromRecents="true"
             android:screenOrientation="landscape" />
+        <activity android:name=".AppLibraryActivity" android:exported="false"
+            android:screenOrientation="landscape" android:excludeFromRecents="true" />
         <!-- The system input switcher (com.android.tv.action.VIEW_INPUTS), which is what the remote's Input
              button becomes through the TV's Live TV app or InputKeyService. Disabled here and switched on by
              MainActivity only while handle_view_inputs is true (config.xml or a theme), for sets whose stock

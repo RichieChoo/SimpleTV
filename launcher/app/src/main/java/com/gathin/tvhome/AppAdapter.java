@@ -64,7 +64,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     }
 
     static final class Entry {
-        static final int APP = 0, HOME_SETTINGS = 1, CARD = 2, EMPTY = 3;
+        static final int APP = 0, HOME_SETTINGS = 1, CARD = 2, EMPTY = 3, LIBRARY = 4;
 
         final int kind;
         final String label;
@@ -201,6 +201,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private final boolean animations;
     private final boolean advancedEffects;
     private final boolean showLibrary;
+    private final boolean libraryTile;
     /** Packages with a leanback entry at the last reload(): their tiles launch with the leanback category. */
     private Set<String> leanbackPackages = new HashSet<>();
     private final boolean showHomeSettings;
@@ -229,7 +230,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         this.animations = cfg.animations;
         this.advancedEffects = cfg.animations && cfg.advancedEffects;
         this.showHomeSettings = cfg.showHomeSettingsShortcut;
-        this.showLibrary = cfg.appLibrary;
+        this.showLibrary = cfg.appLibrary && !cfg.singleRow;
+        this.libraryTile = cfg.appLibrary && cfg.singleRow;
         this.reducedMotion = cfg.reducedMotion;
         this.focusOvershoot = cfg.focusOvershoot;
         this.rowsBelowDock = cfg.rowsBelowDock;
@@ -306,7 +308,14 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 fresh.add(new Entry(label, component, banner, icon));
             }
         }
+        if (libraryTile) {
+            fresh.add(new Entry(Entry.LIBRARY, ctx.getString(R.string.app_library),
+                    new ComponentName(ctx, "AllApps"), null, ctx.getDrawable(R.drawable.ic_apps), null, 0xFF5265B8));
+        }
         Collections.sort(fresh, (a, b) -> {
+            // All apps stays at the end of the strip, including after installing or moving other apps.
+            if (a.kind == Entry.LIBRARY || b.kind == Entry.LIBRARY)
+                return a.kind == b.kind ? 0 : a.kind == Entry.LIBRARY ? 1 : -1;
             // The owner's own order first; tiles it does not know (new installs) follow by the rule below.
             int saved = Order.compare(savedRanks, a.component.flattenToShortString(), b.component.flattenToShortString());
             if (saved != 0) return saved;
@@ -463,7 +472,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         // A fully opaque banner covers the whole card (centerCrop), so the card's own fill under it is drawn for
         // nothing on every frame; keep it under banners with transparent parts and under icon tiles.
         h.card.setBackground(e.banner != null && e.banner.getOpacity() == PixelFormat.OPAQUE ? null : h.cardBackground);
-        if (uniformTiles && e.banner == null) {
+        if ((uniformTiles || singleRow && e.kind == Entry.APP) && e.banner == null) {
             if (e.backdrop == null) e.backdrop = backdrop(e.icon, ambientColorAt(position));
             h.card.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, e.backdrop));
         }
@@ -477,8 +486,33 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             h.banner.setVisibility(View.GONE);
             h.icon.setImageDrawable(e.icon);
             h.icon.setVisibility(View.VISIBLE);
+            FrameLayout.LayoutParams iconParams = (FrameLayout.LayoutParams) h.icon.getLayoutParams();
+            boolean cleanHomeIcon = singleRow && e.kind == Entry.APP;
+            if (cleanHomeIcon) iconParams.width = iconParams.height = Math.round(h.card.getLayoutParams().height * 0.74f);
+            iconParams.bottomMargin = e.kind == Entry.LIBRARY || uniformTiles || cleanHomeIcon ? 0
+                    : Math.round(14 * ctx.getResources().getDisplayMetrics().density);
+            h.icon.setLayoutParams(iconParams);
             h.label.setText(e.label);
-            h.label.setVisibility(uniformTiles ? View.GONE : View.VISIBLE);
+            h.label.setVisibility(uniformTiles || singleRow && e.kind == Entry.APP || e.kind == Entry.LIBRARY ? View.GONE : View.VISIBLE);
+        }
+        if (e.kind == Entry.LIBRARY) {
+            h.banner.setVisibility(View.GONE);
+            h.icon.setVisibility(View.GONE);
+            h.name.setVisibility(View.GONE);
+            h.label.setText(R.string.all_apps_button);
+            h.label.setTextSize(18f);
+            h.label.setPadding(0, 0, 0, 0);
+            FrameLayout.LayoutParams textParams = (FrameLayout.LayoutParams) h.label.getLayoutParams();
+            textParams.gravity = android.view.Gravity.CENTER;
+            h.label.setLayoutParams(textParams);
+            h.label.setVisibility(View.VISIBLE);
+        } else {
+            h.label.setTextSize(13f);
+            int pad = Math.round(10 * ctx.getResources().getDisplayMetrics().density);
+            h.label.setPadding(pad, 0, pad, Math.round(8 * ctx.getResources().getDisplayMetrics().density));
+            FrameLayout.LayoutParams textParams = (FrameLayout.LayoutParams) h.label.getLayoutParams();
+            textParams.gravity = android.view.Gravity.BOTTOM;
+            h.label.setLayoutParams(textParams);
         }
         h.card.setOnClickListener(v -> launch(e));
         h.card.setOnLongClickListener(v -> {
@@ -499,6 +533,10 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     /** Opens the tile's activity by explicit component, with no extras: a card can name nothing else. */
     private void launch(Entry e) {
+        if (e.kind == Entry.LIBRARY) {
+            listener.onLibraryRequested();
+            return;
+        }
         if (e.kind == Entry.HOME_SETTINGS) {
             ctx.startActivity(new Intent(ctx, HomeSettingsActivity.class)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
@@ -519,7 +557,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         }
         try {
             ctx.startActivity(i);
-            if (cinematic) LastOpened.record(ctx, e.pkg);
+            LastOpened.record(ctx, e.pkg);
             if (advancedEffects && !reducedMotion && ctx instanceof Activity) {
                 ((Activity) ctx).overridePendingTransition(R.anim.app_open_enter, R.anim.app_open_exit);
             }
@@ -534,6 +572,11 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     }
 
     int appCount() { return items.size(); }
+
+    int libraryTilePosition() {
+        for (int i = 0; i < items.size(); i++) if (items.get(i).kind == Entry.LIBRARY) return i;
+        return -1;
+    }
 
     boolean isLibraryAt(int position) { return showLibrary && position == items.size(); }
 
@@ -577,7 +620,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     /** Tiles that can be moved: everything but the "Default home" tile, which always stays last. */
     int movableCount() {
         int n = items.size();
-        return n > 0 && items.get(n - 1).kind == Entry.HOME_SETTINGS ? n - 1 : n;
+        while (n > 0 && (items.get(n - 1).kind == Entry.HOME_SETTINGS || items.get(n - 1).kind == Entry.LIBRARY)) n--;
+        return n;
     }
 
     /** Keys of the movable tiles in their current order, for Order (empty dock slots are not tiles). */
